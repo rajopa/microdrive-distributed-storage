@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "microdrive_payment/pkg/proto;proto";
+
+service PaymentService {
+  rpc ProcessPayment (PaymentRequest) returns (PaymentResponse);
+}
+
+message PaymentRequest {
+  string order_id = 1;
+  string user_id = 2;
+  double amount = 3;
+  string card_number = 4;
+}
+
+message PaymentResponse {
+  string transaction_id = 1;
+  bool success = 2;
+  string message = 3;
+}

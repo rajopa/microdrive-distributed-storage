@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package image; 
+
+option go_package = "microdrive_gateway/pkg/proto;proto";
+
+message DownloadImagesRequest {
+        ImageInfo info = 1; //параметры обработки изображения
+        bytes image = 2; // непосредственно данные изображения
+}
+
+message ImageInfo {
+       string compress = 1; // сжатие
+    string watermark = 2; // вотермарк
+    string format = 3; // перевод в формат файла
+    repeated int32 width = 4; // ширина обработанной картинки
+    repeated int32 height = 5; // высота обработанной картинки
+  }
+message DownloadImagesResponse {
+    repeated string storage_path = 1; // ссылка куда сохранить
+    string error=2;
+}
+
+/* При передаче файлов больших размеров клиент передает нам данные потоком, сервер дожидается окончания передачи, обрабатывет запрос и отдает пользователю ответ. */
+service ImageService {
+    rpc DownloadImages(stream DownloadImagesRequest) returns (DownloadImagesResponse);
+  }

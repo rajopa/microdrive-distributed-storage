@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-deployment
+  namespace: microdrive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+      - name: gateway-container
+        image: yegor222/microdrive-gateway:latest
+        imagePullPolicy: Never
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        ports:
+        - containerPort: 55056
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+  namespace: microdrive
+spec:
+  type: LoadBalancer 
+  selector:
+    app: gateway
+  ports:
+    - protocol: TCP
+      port: 80       
+      targetPort: 55056

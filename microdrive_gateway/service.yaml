@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-handler
+  namespace: microdrive
+spec:
+  selector:
+    app: gateway
+  ports:
+    - protocol: TCP
+      port: 55056
+      targetPort: 55056
+  type: LoadBalancer

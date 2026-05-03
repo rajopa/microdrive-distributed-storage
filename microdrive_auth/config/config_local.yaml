@@ -1,0 +1,6 @@
+env: "local"
+storage_path: "host=db port=5432 user=postgres password=qwerty dbname=postgres
+  sslmode=disable"
+grpc:
+  port: 44044
+  timeout: 15m

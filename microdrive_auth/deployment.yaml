@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-deployment
+  namespace: microdrive
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth
+  template:
+    metadata:
+      labels:
+        app: auth
+    spec:
+      containers:
+      - name: auth-service
+        image: yegor222/microdrive-auth:latest
+        imagePullPolicy: Never
+        env:
+        - name: CONFIG_PATH
+          value: "/app/config/config_local.yaml"
+        ports:
+        - containerPort: 44044
+        resources:
+          requests:         
+            memory: "64Mi"
+            cpu: "100m"      
+          limits:            
+            memory: "128Mi"
+            cpu: "200m"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config/config_local.yaml
+          subPath: config_local.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: auth-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: microdrive
+spec:
+  selector:
+    app: auth
+  ports:
+    - protocol: TCP
+      port: 44044
+      targetPort: 44044
