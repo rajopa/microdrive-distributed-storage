@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package auth;
 
-
 option go_package = "microdrive_auth/pkg/proto;proto";
 
 service Auth {
@@ -11,6 +10,8 @@ service Auth {
   rpc Login (LoginRequest) returns (LoginResponse);
   
   rpc IsAdmin (IsAdminRequest) returns (IsAdminResponse);
+
+  rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse); // <--- Добавили RPC метод
 }
 
 message RegisterRequest {
@@ -30,6 +31,7 @@ message LoginRequest {
 
 message LoginResponse {
   string token = 1;
+  string refresh_token = 2; // <--- Добавили поле refresh_token
 }
 
 message IsAdminRequest {
@@ -40,3 +42,12 @@ message IsAdminResponse {
   bool is_admin = 1;
 }
 
+message RefreshTokenRequest {
+  string refresh_token = 1;
+  int32 app_id = 2;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+}

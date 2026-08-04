@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -11,11 +13,14 @@ import (
 	"microdrive_auth/internal/storage"
 	"time"
 
+	"github.com/google/uuid"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidToken       = errors.New("invalid or expired token")
 )
 
 type UserStorage interface {
@@ -39,13 +44,20 @@ type UserProvider interface {
 type AppProvider interface {
 	App(ctx context.Context, appID int) (models.App, error)
 }
+type RefreshTokenStorage interface {
+	SaveToken(ctx context.Context, userID int64, tokenHash string, expiresAt time.Time) error
+	GetToken(ctx context.Context, tokenHash string) (int64, time.Time, error)
+	DeleteToken(ctx context.Context, tokenHash string) error
+}
 
 type Auth struct {
-	log         *slog.Logger
-	usrSaver    UserSaver
-	usrProvider UserProvider
-	appProvider AppProvider
-	tokenTTL    time.Duration
+	log             *slog.Logger
+	usrSaver        UserSaver
+	usrProvider     UserProvider
+	appProvider     AppProvider
+	tokenTTL        time.Duration
+	refreshTokenTTL time.Duration
+	tokenStorage    RefreshTokenStorage
 }
 
 func New(
@@ -54,13 +66,17 @@ func New(
 	userProvider UserProvider,
 	appProvider AppProvider,
 	tokenTTL time.Duration,
+	refreshTokenTTL time.Duration,
+	tokenStorage RefreshTokenStorage,
 ) *Auth {
 	return &Auth{
-		usrSaver:    userSaver,
-		usrProvider: userProvider,
-		log:         log,
-		appProvider: appProvider,
-		tokenTTL:    tokenTTL,
+		usrSaver:        userSaver,
+		usrProvider:     userProvider,
+		log:             log,
+		appProvider:     appProvider,
+		tokenTTL:        tokenTTL,
+		refreshTokenTTL: refreshTokenTTL,
+		tokenStorage:    tokenStorage,
 	}
 }
 
@@ -97,7 +113,7 @@ func (a *Auth) Login(
 	email string,
 	password string,
 	appID int,
-) (string, error) {
+) (string, string, error) {
 	const op = "Auth.Login"
 
 	log := a.log.With(
@@ -112,35 +128,44 @@ func (a *Auth) Login(
 		if errors.Is(err, storage.ErrUserNotFound) {
 			a.log.Warn("user not found", sl.Err(err))
 
-			return "", fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+			return "", "", fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
 		}
 
 		a.log.Error("failed to get user", sl.Err(err))
 
-		return "", fmt.Errorf("%s: %w", op, err)
+		return "", "", fmt.Errorf("%s: %w", op, err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
 		a.log.Info("invalid credentials", sl.Err(err))
 
-		return "", fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
+		return "", "", fmt.Errorf("%s: %w", op, ErrInvalidCredentials)
 	}
 
 	app, err := a.appProvider.App(ctx, appID)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	accessToken, err := jwt.NewToken(user, app, a.tokenTTL)
+	if err != nil {
+		a.log.Error("failed to generate access token", sl.Err(err))
+
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	refreshToken := uuid.New().String()
+	refreshHash := hashToken(refreshToken)
+
+	err = a.tokenStorage.SaveToken(ctx, user.ID, refreshHash, time.Now().Add(7*24*time.Hour))
+	if err != nil {
+		a.log.Error("failed to save refresh token", sl.Err(err))
+
+		return "", "", fmt.Errorf("%s: %w", op, err)
 	}
 
 	log.Info("user logged in successfully")
-
-	token, err := jwt.NewToken(user, app, a.tokenTTL)
-	if err != nil {
-		a.log.Error("failed to generate token", sl.Err(err))
-
-		return "", fmt.Errorf("%s: %w", op, err)
-	}
-
-	return token, nil
+	return accessToken, refreshToken, nil
 }
 
 func (a *Auth) IsAdmin(ctx context.Context, userID int64) (bool, error) {
@@ -161,4 +186,42 @@ func (a *Auth) IsAdmin(ctx context.Context, userID int64) (bool, error) {
 	log.Info("checked if user is admin", slog.Bool("is_admin", isAdmin))
 
 	return isAdmin, nil
+}
+
+func hashToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
+}
+
+func (a *Auth) RefreshToken(ctx context.Context, oldToken string, appID int) (string, string, error) {
+	const op = "Auth.RefreshToken"
+
+	oldHash := hashToken(oldToken)
+	userID, expiresAt, err := a.tokenStorage.GetToken(ctx, oldHash)
+	if err != nil {
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+	if time.Now().After(expiresAt) {
+		return "", "", fmt.Errorf("%s: %w", op, ErrInvalidToken)
+	}
+	_ = a.tokenStorage.DeleteToken(ctx, oldHash)
+
+	app, err := a.appProvider.App(ctx, appID)
+	if err != nil {
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	accessToken, err := jwt.NewToken(models.User{ID: userID}, app, a.tokenTTL)
+	if err != nil {
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+	newRefresh := uuid.New().String()
+	newHash := hashToken(newRefresh)
+
+	err = a.tokenStorage.SaveToken(ctx, userID, newHash, time.Now().Add(7*24*time.Hour))
+	if err != nil {
+		return "", "", fmt.Errorf("%s: %w", op, err)
+	}
+
+	return accessToken, newRefresh, nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"microdrive_auth/internal/domain/models"
 	"microdrive_auth/internal/storage"
+	"time"
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
@@ -105,4 +106,23 @@ func (s *Storage) IsAdmin(ctx context.Context, userID int64) (bool, error) {
 	}
 
 	return isAdmin, nil
+}
+func (s *Storage) SaveToken(ctx context.Context, userID int64, tokenHash string, expiresAt time.Time) error {
+	query := `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`
+	_, err := s.db.ExecContext(ctx, query, userID, tokenHash, expiresAt)
+	return err
+}
+
+func (s *Storage) GetToken(ctx context.Context, tokenHash string) (int64, time.Time, error) {
+	var userID int64
+	var expiresAt time.Time
+	query := `SELECT user_id, expires_at FROM refresh_tokens WHERE token_hash = $1`
+	err := s.db.QueryRowContext(ctx, query, tokenHash).Scan(&userID, &expiresAt)
+	return userID, expiresAt, err
+}
+
+func (s *Storage) DeleteToken(ctx context.Context, tokenHash string) error {
+	query := `DELETE FROM refresh_tokens WHERE token_hash = $1`
+	_, err := s.db.ExecContext(ctx, query, tokenHash)
+	return err
 }

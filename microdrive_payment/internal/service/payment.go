@@ -19,7 +19,6 @@ func (s *PaymentServer) ProcessPayment(ctx context.Context, req *pb.PaymentReque
 	if req.Amount > 10000 {
 		success = false
 	}
-
 	transactionID := fmt.Sprintf("tr_%d", rand.Intn(1000000))
 
 	return &pb.PaymentResponse{

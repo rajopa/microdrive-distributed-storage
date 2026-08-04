@@ -46,7 +46,7 @@ func main() {
 		panic(err)
 	}
 
-	authService := auth.New(log, storage, storage, storage, cfg.TokenTTL)
+	authService := auth.New(log, storage, storage, storage, cfg.TokenTTL, cfg.RefreshTokenTTL, storage)
 
 	application := grpcapp.New(log, authService, cfg.GRPC.Port)
 

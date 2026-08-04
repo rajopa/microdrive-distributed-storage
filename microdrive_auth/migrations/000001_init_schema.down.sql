@@ -1,1 +1,3 @@
-DROP TABLE IF EXISTS users, apps;
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS apps;
+DROP TABLE IF EXISTS users;

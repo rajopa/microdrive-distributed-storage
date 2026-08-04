@@ -26,12 +26,17 @@ type Auth interface {
 		email string,
 		password string,
 		appID int,
-	) (token string, err error)
+	) (token string, refreshToken string, err error)
 	RegisterNewUser(
 		ctx context.Context,
 		email string,
 		password string,
 	) (userID int64, err error)
+	RefreshToken(
+		ctx context.Context,
+		refreshToken string,
+		appID int,
+	) (string, string, error)
 }
 
 func Register(gRPCServer *grpc.Server, auth Auth) {
@@ -53,8 +58,7 @@ func (s *serverAPI) Login(
 	if in.GetAppId() == 0 {
 		return nil, status.Error(codes.InvalidArgument, "app_id is required")
 	}
-
-	token, err := s.auth.Login(ctx, in.GetEmail(), in.GetPassword(), int(in.GetAppId()))
+	accessToken, refreshToken, err := s.auth.Login(ctx, in.GetEmail(), in.GetPassword(), int(in.GetAppId()))
 	if err != nil {
 		if errors.Is(err, authService.ErrInvalidCredentials) {
 			return nil, status.Error(codes.InvalidArgument, "invalid email or password")
@@ -63,7 +67,10 @@ func (s *serverAPI) Login(
 		return nil, status.Error(codes.Internal, "failed to login")
 	}
 
-	return &pb.LoginResponse{Token: token}, nil
+	return &pb.LoginResponse{
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
 func (s *serverAPI) Register(
@@ -108,4 +115,26 @@ func (s *serverAPI) IsAdmin(
 	}
 
 	return &pb.IsAdminResponse{IsAdmin: isAdmin}, nil
+}
+
+func (s *serverAPI) RefreshToken(
+	ctx context.Context,
+	in *pb.RefreshTokenRequest,
+) (*pb.RefreshTokenResponse, error) {
+	if in.GetRefreshToken() == "" {
+		return nil, status.Error(codes.InvalidArgument, "refresh_token is required")
+	}
+
+	accessToken, refreshToken, err := s.auth.RefreshToken(ctx, in.GetRefreshToken(), int(in.GetAppId()))
+	if err != nil {
+		if errors.Is(err, authService.ErrInvalidToken) {
+			return nil, status.Error(codes.Unauthenticated, "invalid or expired refresh token")
+		}
+		return nil, status.Error(codes.Internal, "failed to refresh token")
+	}
+
+	return &pb.RefreshTokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
