@@ -91,7 +91,7 @@ func (s *serverAPI) Register(
 			return nil, status.Error(codes.AlreadyExists, "user already exists")
 		}
 
-		return nil, status.Error(codes.Internal, "failed to register user")
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &pb.RegisterResponse{UserId: uid}, nil

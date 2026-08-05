@@ -6,7 +6,8 @@ import (
 
 	"microdrive_auth/tests/suite"
 
-	ssov1 "github.com/GolangLessons/protos/gen/go/sso"
+	ssov1 "microdrive_auth/gen/go"
+
 	"github.com/brianvoe/gofakeit/v6"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"

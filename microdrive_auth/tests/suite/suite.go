@@ -7,13 +7,14 @@ import (
 	"strconv"
 	"testing"
 
-	ssov1 "github.com/GolangLessons/protos/gen/go/sso"
+	ssov1 "microdrive_auth/gen/go"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
-	configPath = "../config/local.yaml"
+	configPath = "../config/config_local.yaml"
 	grpcHost   = "localhost"
 )
 
