@@ -48,8 +48,7 @@ func resizeImage(path OriginalImage) []string {
 			return []string{}
 		}
 	}
-	//проверяем что у нас одинаковое количество
-	// параметров длины и ширины картинки для ее создания
+
 	if len(path.Lenght) != len(path.Width) {
 		return []string{}
 	}
